@@ -12,6 +12,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.config import settings
+from app.routes import payments_router, webhooks_router, partners_router
+from app.db.database import init_db, close_db
+from app.utils.idempotency import close_redis
 
 
 # Configurar logging estructurado
@@ -49,14 +52,15 @@ async def lifespan(app: FastAPI):
         payment_provider=settings.PAYMENT_PROVIDER,
     )
     
-    # TODO: Inicializar conexión a DB
-    # TODO: Inicializar conexión a Redis
+    # Inicializar base de datos
+    await init_db()
     
     yield
     
     # Shutdown
     logger.info("Shutting down Payment Service")
-    # TODO: Cerrar conexiones
+    await close_db()
+    await close_redis()
 
 
 app = FastAPI(
@@ -110,11 +114,10 @@ async def health_check():
     }
 
 
-# TODO: Incluir routers
-# from app.routes import payments, webhooks, partners
-# app.include_router(payments.router, prefix="/payments", tags=["Payments"])
-# app.include_router(webhooks.router, prefix="/webhooks", tags=["Webhooks"])
-# app.include_router(partners.router, prefix="/partners", tags=["Partners"])
+# Incluir routers
+app.include_router(payments_router, prefix="/payments", tags=["Payments"])
+app.include_router(webhooks_router, prefix="/webhooks", tags=["Webhooks"])
+app.include_router(partners_router, prefix="/partners", tags=["Partners"])
 
 
 if __name__ == "__main__":
