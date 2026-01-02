@@ -1,0 +1,100 @@
+version: '3.8'
+
+services:
+  # ============================================
+  # PAYMENT MICROSERVICE
+  # ============================================
+  payment-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: love4pets-payments
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+    environment:
+      # Servidor
+      - APP_ENV=production
+      - DEBUG=false
+      - API_PORT=8001
+      
+      # Base de datos - Supabase
+      - DATABASE_URL=${DATABASE_URL}
+      - DATABASE_POOL_SIZE=5
+      - DATABASE_POOL_OVERFLOW=10
+      
+      # Redis
+      - REDIS_URL=redis://redis:6379/0
+      
+      # Stripe
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
+      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
+      - STRIPE_PUBLISHABLE_KEY=${STRIPE_PUBLISHABLE_KEY}
+      
+      # Webhooks
+      - WEBHOOK_SECRET=${WEBHOOK_SECRET}
+      - N8N_WEBHOOK_URL=${N8N_WEBHOOK_URL}
+      - WEBHOOK_TIMEOUT=30
+      - WEBHOOK_RETRY_ATTEMPTS=3
+      
+      # URLs de servicios
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3000}
+      - GRAPHQL_SERVICE_URL=${GRAPHQL_SERVICE_URL:-http://graphql:8000}
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - love4pets-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # ============================================
+  # REDIS - Caché e Idempotencia
+  # ============================================
+  redis:
+    image: redis:7-alpine
+    container_name: love4pets-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    networks:
+      - love4pets-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ============================================
+  # NGINX (Opcional - para producción)
+  # ============================================
+  nginx:
+    image: nginx:alpine
+    container_name: love4pets-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - payment-service
+    networks:
+      - love4pets-network
+    profiles:
+      - production
+
+networks:
+  love4pets-network:
+    driver: bridge
+    name: love4pets-network
+
+volumes:
+  redis_data:
+    driver: local
