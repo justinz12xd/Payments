@@ -128,7 +128,7 @@ class Payment(Base, TimestampMixin):
     
     # Metadatos
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
-    metadata: Mapped[dict[str, Any]] = mapped_column(
+    payment_metadata: Mapped[dict[str, Any]] = mapped_column(
         JSONB,
         default=dict,
         nullable=False,

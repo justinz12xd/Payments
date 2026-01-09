@@ -254,7 +254,7 @@ class WebhookService:
             "payment_type": payment.payment_type,
             "campaign_id": str(payment.campaign_id) if payment.campaign_id else None,
             "refugio_id": str(payment.refugio_id) if payment.refugio_id else None,
-            "metadata": payment.metadata,
+            "metadata": payment.payment_metadata,
         }
         
         webhook_ids = []

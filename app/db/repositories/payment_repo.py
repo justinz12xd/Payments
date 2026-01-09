@@ -55,7 +55,7 @@ class PaymentRepository:
             payer_email=payer_email,
             payer_name=payer_name,
             description=description,
-            metadata=metadata or {},
+            payment_metadata=metadata or {},
             idempotency_key=idempotency_key,
             success_url=success_url,
             cancel_url=cancel_url,
@@ -112,7 +112,7 @@ class PaymentRepository:
         if failure_reason is not None:
             update_data["failure_reason"] = failure_reason
         if metadata is not None:
-            update_data["metadata"] = metadata
+            update_data["payment_metadata"] = metadata
         
         await self.db.execute(
             update(Payment)

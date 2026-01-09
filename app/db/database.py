@@ -4,6 +4,7 @@ Configuración de la base de datos y sesión async.
 
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
+from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 
 import structlog
 from sqlalchemy.ext.asyncio import (
@@ -19,9 +20,28 @@ from app.config import settings
 logger = structlog.get_logger(__name__)
 
 # Convertir URL de postgresql:// a postgresql+asyncpg://
+# y remover parámetros no soportados por asyncpg (como pgbouncer)
 database_url = settings.DATABASE_URL
 if database_url.startswith("postgresql://"):
     database_url = database_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+
+# Remover parámetros no soportados por asyncpg
+parsed = urlparse(database_url)
+query_params = parse_qs(parsed.query)
+# Remover 'pgbouncer' y otros parámetros no soportados
+unsupported_params = ['pgbouncer', 'sslmode']
+for param in unsupported_params:
+    query_params.pop(param, None)
+# Reconstruir la URL sin los parámetros no soportados
+clean_query = urlencode(query_params, doseq=True)
+database_url = urlunparse((
+    parsed.scheme,
+    parsed.netloc,
+    parsed.path,
+    parsed.params,
+    clean_query,
+    parsed.fragment
+))
 
 # Crear engine async
 engine = create_async_engine(
