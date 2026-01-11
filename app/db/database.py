@@ -2,6 +2,7 @@
 Configuración de la base de datos y sesión async.
 """
 
+import json
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
@@ -12,7 +13,7 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
     create_async_engine,
 )
-from sqlalchemy.pool import NullPool
+from sqlalchemy.pool import NullPool, StaticPool
 
 from app.config import settings
 
@@ -32,7 +33,9 @@ query_params = parse_qs(parsed.query)
 unsupported_params = ['pgbouncer', 'sslmode']
 for param in unsupported_params:
     query_params.pop(param, None)
-# Reconstruir la URL sin los parámetros no soportados
+# Agregar prepared_statement_cache_size=0 directamente en la URL (para asyncpg)
+query_params['prepared_statement_cache_size'] = ['0']
+# Reconstruir la URL con los parámetros
 clean_query = urlencode(query_params, doseq=True)
 database_url = urlunparse((
     parsed.scheme,
@@ -43,12 +46,20 @@ database_url = urlunparse((
     parsed.fragment
 ))
 
-# Crear engine async
+# Crear engine async con configuración para pgbouncer
+# CRÍTICO: json_serializer y json_deserializer para manejar JSONB correctamente
 engine = create_async_engine(
     database_url,
     echo=settings.DEBUG,
-    poolclass=NullPool,  # Recomendado para pgbouncer
+    poolclass=NullPool,  # Recomendado para pgbouncer - no mantiene conexiones
     future=True,
+    # Serializar diccionarios Python a JSON strings para asyncpg
+    json_serializer=lambda obj: json.dumps(obj),
+    json_deserializer=lambda s: json.loads(s) if isinstance(s, str) else s,
+    connect_args={
+        "prepared_statement_cache_size": 0,  # Deshabilitar cache de prepared statements
+        "command_timeout": 60,
+    },
 )
 
 # Session factory

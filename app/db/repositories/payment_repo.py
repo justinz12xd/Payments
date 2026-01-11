@@ -34,6 +34,7 @@ class PaymentRepository:
         campaign_id: UUID | None = None,
         animal_id: UUID | None = None,
         refugio_id: UUID | None = None,
+        causa_urgente_id: UUID | None = None,
         payer_email: str | None = None,
         payer_name: str | None = None,
         description: str | None = None,
@@ -52,6 +53,7 @@ class PaymentRepository:
             campaign_id=campaign_id,
             animal_id=animal_id,
             refugio_id=refugio_id,
+            causa_urgente_id=causa_urgente_id,
             payer_email=payer_email,
             payer_name=payer_name,
             description=description,
@@ -172,3 +174,30 @@ class PaymentRepository:
             .where(Payment.status == PaymentStatus.SUCCEEDED.value)
         )
         return result.scalar() or Decimal(0)
+
+    async def get_causa_urgente_total(self, causa_urgente_id: UUID) -> Decimal:
+        """Obtiene el total recaudado para una causa urgente."""
+        from sqlalchemy import func
+        
+        result = await self.db.execute(
+            select(func.coalesce(func.sum(Payment.amount), 0))
+            .where(Payment.causa_urgente_id == causa_urgente_id)
+            .where(Payment.status == PaymentStatus.SUCCEEDED.value)
+        )
+        return result.scalar() or Decimal(0)
+    
+    async def list_by_causa_urgente(
+        self,
+        causa_urgente_id: UUID,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[Payment]:
+        """Lista pagos de una causa urgente específica."""
+        result = await self.db.execute(
+            select(Payment)
+            .where(Payment.causa_urgente_id == causa_urgente_id)
+            .order_by(Payment.created_at.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+        return result.scalars().all()

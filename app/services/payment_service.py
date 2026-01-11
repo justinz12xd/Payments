@@ -96,10 +96,11 @@ class PaymentService:
             campaign_id=request.campaign_id,
             animal_id=request.animal_id,
             refugio_id=request.refugio_id,
+            causa_urgente_id=request.causa_urgente_id,
             payer_email=request.payer_email,
             payer_name=request.payer_name,
             description=request.description,
-            payment_metadata=request.metadata,
+            metadata=request.metadata,
             idempotency_key=idempotency_key,
             success_url=request.success_url,
             cancel_url=request.cancel_url,
@@ -196,6 +197,74 @@ class PaymentService:
             raise PaymentNotFoundError(str(payment_id))
         
         return self._to_response(payment)
+    
+    async def verify_and_update_payment(self, payment_id: UUID) -> PaymentResponse:
+        """
+        Verifica el estado actual del pago con el proveedor y actualiza la BD.
+        
+        Útil para verificar pagos después de regresar de Stripe Checkout,
+        sin depender de webhooks.
+        
+        Args:
+            payment_id: ID del pago a verificar
+            
+        Returns:
+            PaymentResponse actualizado
+        """
+        payment = await self.repo.get_by_id(payment_id)
+        
+        if not payment:
+            raise PaymentNotFoundError(str(payment_id))
+        
+        # Si ya está en estado final, no verificar
+        if payment.status in [PaymentStatus.SUCCEEDED.value, PaymentStatus.REFUNDED.value]:
+            return self._to_response(payment)
+        
+        # Si no tiene provider_payment_id, no podemos verificar
+        if not payment.provider_payment_id:
+            logger.warning(
+                "Cannot verify payment without provider_payment_id",
+                payment_id=str(payment_id),
+            )
+            return self._to_response(payment)
+        
+        try:
+            # Consultar estado actual con el proveedor
+            result = await self.provider.retrieve_payment(payment.provider_payment_id)
+            
+            # Mapear estado del resultado
+            if result.status == PaymentResultStatus.SUCCESS:
+                new_status = PaymentStatus.SUCCEEDED
+            elif result.status == PaymentResultStatus.FAILED:
+                new_status = PaymentStatus.FAILED
+            else:
+                new_status = PaymentStatus.PENDING
+            
+            # Solo actualizar si el estado cambió
+            if new_status.value != payment.status:
+                logger.info(
+                    "Payment status changed after verification",
+                    payment_id=str(payment_id),
+                    old_status=payment.status,
+                    new_status=new_status.value,
+                )
+                
+                updated = await self.repo.update_status(
+                    payment_id=payment_id,
+                    status=new_status,
+                    failure_reason=result.failure_reason,
+                )
+                return self._to_response(updated)
+            
+            return self._to_response(payment)
+            
+        except Exception as e:
+            logger.error(
+                "Error verifying payment with provider",
+                payment_id=str(payment_id),
+                error=str(e),
+            )
+            raise
     
     async def get_payment_by_provider_id(self, provider_payment_id: str) -> PaymentResponse:
         """
@@ -375,9 +444,28 @@ class PaymentService:
         
         return {
             "campaign_id": str(campaign_id),
-            "total_raised": float(total),
+            "total_raised": float(total) / 100,  # Convertir centavos a dólares
             "total_donations": len(payments),
-            "currency": "usd",  # TODO: Soportar múltiples monedas
+            "currency": "usd",
+        }
+    
+    async def get_causa_urgente_stats(self, causa_urgente_id: UUID) -> dict[str, Any]:
+        """
+        Obtiene estadísticas de donaciones para una causa urgente.
+        """
+        total = await self.repo.get_causa_urgente_total(causa_urgente_id)
+        payments = await self.repo.list_by_causa_urgente(causa_urgente_id, limit=100)
+        
+        succeeded_payments = [p for p in payments if p.status == "succeeded"]
+        failed_payments = [p for p in payments if p.status == "failed"]
+        
+        return {
+            "causa_urgente_id": str(causa_urgente_id),
+            "total_raised": float(total) / 100,  # Convertir centavos a dólares
+            "total_donations": len(succeeded_payments),
+            "total_attempts": len(payments),
+            "failed_donations": len(failed_payments),
+            "currency": "usd",
         }
     
     def _to_response(self, payment: Payment) -> PaymentResponse:
@@ -392,6 +480,7 @@ class PaymentService:
             campaign_id=payment.campaign_id,
             animal_id=payment.animal_id,
             refugio_id=payment.refugio_id,
+            causa_urgente_id=payment.causa_urgente_id,
             payer_email=payment.payer_email,
             payer_name=payment.payer_name,
             provider=payment.provider,

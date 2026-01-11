@@ -57,6 +57,7 @@ class PaymentCreateRequest(BaseSchema):
     campaign_id: UUID | None = Field(None, description="ID de la campaña (si aplica)")
     animal_id: UUID | None = Field(None, description="ID del animal (si aplica)")
     refugio_id: UUID | None = Field(None, description="ID del refugio beneficiario")
+    causa_urgente_id: UUID | None = Field(None, description="ID de la causa urgente (para donaciones a causas urgentes)")
     
     # Datos del pagador (si no hay user_id)
     payer_email: str | None = Field(None, description="Email del pagador")
@@ -106,6 +107,7 @@ class PaymentResponse(BaseSchema, TimestampMixin):
     campaign_id: UUID | None = None
     animal_id: UUID | None = None
     refugio_id: UUID | None = None
+    causa_urgente_id: UUID | None = None
     
     # Datos del pagador
     payer_email: str | None = None

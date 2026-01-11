@@ -103,6 +103,12 @@ class Payment(Base, TimestampMixin):
         nullable=True,
         index=True,
     )
+    causa_urgente_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        nullable=True,
+        index=True,
+        comment="ID de la causa urgente para donaciones específicas",
+    )
     
     # Datos del pagador (si no hay user_id)
     payer_email: Mapped[str | None] = mapped_column(String(255), nullable=True)

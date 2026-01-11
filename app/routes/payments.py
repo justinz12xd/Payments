@@ -211,3 +211,53 @@ async def get_campaign_stats(
         success=True,
         data=stats,
     )
+
+
+@router.get(
+    "/causas-urgentes/{causa_urgente_id}/stats",
+    response_model=APIResponse[dict],
+    summary="Estadísticas de una causa urgente",
+)
+async def get_causa_urgente_stats(
+    causa_urgente_id: UUID,
+    service: PaymentService = Depends(get_payment_service),
+):
+    """Obtiene estadísticas de pagos/donaciones para una causa urgente."""
+    stats = await service.get_causa_urgente_stats(causa_urgente_id)
+    return APIResponse(
+        success=True,
+        data=stats,
+    )
+
+
+@router.post(
+    "/{payment_id}/verify",
+    response_model=APIResponse[PaymentResponse],
+    summary="Verificar estado de pago con el proveedor",
+)
+async def verify_payment(
+    payment_id: UUID,
+    service: PaymentService = Depends(get_payment_service),
+):
+    """
+    Verifica el estado actual de un pago con el proveedor (Stripe).
+    Útil para actualizar el estado después de regresar de Stripe Checkout.
+    """
+    try:
+        payment = await service.verify_and_update_payment(payment_id)
+        return APIResponse(
+            success=True,
+            message=f"Payment status: {payment.status}",
+            data=payment,
+        )
+    except PaymentNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Payment not found: {payment_id}",
+        )
+    except Exception as e:
+        logger.error("Error verifying payment", payment_id=str(payment_id), error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error verifying payment: {str(e)}",
+        )
