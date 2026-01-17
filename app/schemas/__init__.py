@@ -48,6 +48,16 @@ from app.schemas.webhook import (
     WebhookStatus,
 )
 
+# Adoption B2B
+from app.schemas.adoption import (
+    AdopterInfo,
+    AdoptionNotifyRequest,
+    AdoptionNotifyResponse,
+    AdoptionWebhookPayload,
+    AnimalInfo,
+    ShelterInfo,
+)
+
 __all__ = [
     # Common
     "APIResponse",
@@ -82,4 +92,11 @@ __all__ = [
     "WebhookLog",
     "WebhookSignature",
     "WebhookStatus",
+    # Adoption B2B
+    "AdopterInfo",
+    "AdoptionNotifyRequest",
+    "AdoptionNotifyResponse",
+    "AdoptionWebhookPayload",
+    "AnimalInfo",
+    "ShelterInfo",
 ]

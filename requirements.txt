@@ -4,9 +4,9 @@ uvicorn[standard]==0.30.6
 python-multipart==0.0.9
 
 # Base de datos
-asyncpg==0.29.0
+asyncpg==0.31.0
 sqlalchemy[asyncio]==2.0.35
-psycopg2-binary==2.9.9
+psycopg2-binary==2.9.11
 
 # Redis para idempotencia
 redis==5.0.8

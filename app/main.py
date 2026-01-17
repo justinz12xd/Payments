@@ -12,7 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.config import settings
-from app.routes import payments_router, webhooks_router, partners_router
+from app.routes import payments_router, webhooks_router, partners_router, adoptions_router
 from app.db.database import init_db, close_db
 from app.utils.idempotency import close_redis
 
@@ -118,6 +118,7 @@ async def health_check():
 app.include_router(payments_router, prefix="/payments", tags=["Payments"])
 app.include_router(webhooks_router, prefix="/webhooks", tags=["Webhooks"])
 app.include_router(partners_router, prefix="/partners", tags=["Partners"])
+app.include_router(adoptions_router, prefix="/adoptions", tags=["Adoptions B2B"])
 
 
 if __name__ == "__main__":
