@@ -21,7 +21,7 @@ from app.db.repositories import PartnerRepository, PaymentRepository, WebhookLog
 from app.schemas.partner import WebhookEventType
 from app.schemas.payment import PaymentStatus
 from app.schemas.webhook import OutgoingWebhookPayload, WebhookDirection
-from app.utils.hmac_utils import create_webhook_signature_header
+from app.utils.hmac_utils import create_webhook_signature_header, generate_signature
 from app.utils.exceptions import (
     PaymentNotFoundError,
     WebhookVerificationError,
@@ -303,8 +303,11 @@ class WebhookService:
             default=str,
         ).encode("utf-8")
         
-        # Crear firma
-        signature = create_webhook_signature_header(payload_bytes, partner.secret)
+        # Crear firma y timestamp (formato compatible con sistema externo)
+        timestamp = str(int(time.time()))
+        # Firmar: timestamp.payload (como esperan sistemas externos)
+        signed_payload = f"{timestamp}.".encode("utf-8") + payload_bytes
+        signature = generate_signature(signed_payload, partner.secret)
         
         # Crear log antes de enviar
         webhook_log = await self.webhook_repo.create_outgoing(
@@ -326,6 +329,8 @@ class WebhookService:
                     headers={
                         "Content-Type": "application/json",
                         "X-Webhook-Signature": signature,
+                        "X-Webhook-Timestamp": timestamp,
+                        "X-Partner-ID": str(partner.id),
                         "X-Webhook-Id": str(webhook_payload.id),
                         "X-Event-Type": event_type.value,
                         "User-Agent": "Love4Pets-Payments/1.0",

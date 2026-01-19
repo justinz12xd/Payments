@@ -80,3 +80,85 @@ class AdoptionWebhookPayload(BaseSchema):
     # Datos esenciales del adoptante (lo que tu compañero necesita)
     adopter_email: str = Field(..., description="Email del adoptante")
     adopter_name: str = Field(..., description="Nombre del adoptante")
+    adopter_phone: str | None = Field(None, description="Teléfono del adoptante")
+    
+    # Datos del animal
+    adoption_id: str | None = Field(None, description="ID de la adopción")
+    animal_id: str | None = Field(None, description="ID del animal")
+    animal_name: str | None = Field(None, description="Nombre del animal")
+    animal_species: str | None = Field(None, description="Especie del animal")
+    
+    # Datos del refugio
+    shelter_id: str | None = Field(None, description="ID del refugio")
+    shelter_name: str | None = Field(None, description="Nombre del refugio")
+
+
+class TestWebhookRequest(BaseSchema):
+    """
+    Request para enviar un webhook de prueba a partners.
+    
+    Usa este endpoint desde /docs para probar el envío de webhooks
+    a tu compañero sin necesidad de hacer el flujo completo.
+    """
+    
+    event_type: str = Field(
+        default="adoption.completed",
+        description="Tipo de evento: adoption.created, adoption.approved, adoption.completed",
+        json_schema_extra={"examples": ["adoption.completed", "adoption.approved", "adoption.created"]}
+    )
+    partner_webhook_url: str | None = Field(
+        None,
+        description="URL específica del partner (opcional, si no se provee se envía a todos los partners suscritos)"
+    )
+    
+    # Datos del adoptante
+    adopter_email: EmailStr = Field(
+        default="test@example.com",
+        description="Email del adoptante"
+    )
+    adopter_name: str = Field(
+        default="Usuario de Prueba",
+        description="Nombre del adoptante"
+    )
+    adopter_phone: str | None = Field(
+        default="0999999999",
+        description="Teléfono del adoptante"
+    )
+    
+    # Datos del animal
+    adoption_id: str = Field(
+        default="test-adoption-123",
+        description="ID de la adopción"
+    )
+    animal_id: str = Field(
+        default="test-animal-456",
+        description="ID del animal"
+    )
+    animal_name: str = Field(
+        default="Firulais",
+        description="Nombre del animal"
+    )
+    animal_species: str = Field(
+        default="Perro",
+        description="Especie del animal"
+    )
+    
+    # Datos del refugio
+    shelter_id: str = Field(
+        default="test-shelter-789",
+        description="ID del refugio"
+    )
+    shelter_name: str = Field(
+        default="Refugio Love4Pets",
+        description="Nombre del refugio"
+    )
+
+
+class TestWebhookResponse(BaseSchema):
+    """Response del webhook de prueba."""
+    
+    success: bool = Field(..., description="Si el envío fue exitoso")
+    message: str = Field(..., description="Mensaje de resultado")
+    payload_sent: dict = Field(..., description="Payload que se envió")
+    webhooks_sent: int = Field(default=0, description="Número de webhooks enviados")
+    webhook_ids: list[str] = Field(default_factory=list, description="IDs de los webhooks")

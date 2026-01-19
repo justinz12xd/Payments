@@ -19,6 +19,8 @@ from app.schemas.adoption import (
     AdoptionNotifyRequest,
     AdoptionNotifyResponse,
     AdoptionWebhookPayload,
+    TestWebhookRequest,
+    TestWebhookResponse,
 )
 from app.schemas.common import APIResponse
 from app.schemas.partner import WebhookEventType
@@ -250,6 +252,149 @@ async def notify_adoption_status_change(
         data=AdoptionNotifyResponse(
             success=True,
             message=f"Webhooks sent to {len(webhook_ids)} partners",
+            webhooks_sent=len(webhook_ids),
+            webhook_ids=webhook_ids,
+        ),
+    )
+
+
+@router.post(
+    "/test-webhook",
+    response_model=APIResponse[TestWebhookResponse],
+    status_code=status.HTTP_200_OK,
+    summary="🧪 Enviar webhook de PRUEBA a partners",
+    description="""
+    **ENDPOINT DE PRUEBA** para enviar webhooks a tu compañero.
+    
+    Usa este endpoint desde la interfaz de Swagger (/docs) para probar
+    el envío de webhooks sin necesidad de hacer el flujo completo de adopción.
+    
+    ## Eventos disponibles:
+    - `adoption.created` - Nueva solicitud de adopción
+    - `adoption.approved` - Adopción aprobada por el refugio
+    - `adoption.completed` - Adopción completada
+    
+    ## Payload que recibirá tu compañero:
+    ```json
+    {
+        "event": "adoption.completed",
+        "timestamp": "2026-01-19T10:30:00Z",
+        "adopter_email": "test@example.com",
+        "adopter_name": "Usuario de Prueba",
+        "adopter_phone": "0999999999",
+        "adoption_id": "test-adoption-123",
+        "animal_id": "test-animal-456",
+        "animal_name": "Firulais",
+        "animal_species": "Perro",
+        "shelter_id": "test-shelter-789",
+        "shelter_name": "Refugio Love4Pets"
+    }
+    ```
+    
+    ## Headers que recibirá:
+    - `X-Webhook-Signature`: Firma HMAC-SHA256 para verificar autenticidad
+    - `Content-Type`: application/json
+    """,
+    tags=["🧪 Testing"],
+)
+async def send_test_webhook(
+    request: TestWebhookRequest,
+    services: tuple[PartnerService, WebhookService] = Depends(get_services),
+):
+    """
+    Envía un webhook de prueba a los partners suscritos.
+    
+    Ideal para probar la conexión con tu compañero del Pilar 2.
+    """
+    partner_service, webhook_service = services
+    
+    # Mapear evento a tipo
+    event_type_map = {
+        "adoption.created": WebhookEventType.ADOPTION_CREATED,
+        "adoption.approved": WebhookEventType.ADOPTION_APPROVED,
+        "adoption.completed": WebhookEventType.ADOPTION_COMPLETED,
+    }
+    
+    event_type = event_type_map.get(
+        request.event_type.lower(),
+        WebhookEventType.ADOPTION_COMPLETED
+    )
+    
+    logger.info(
+        "🧪 Test webhook requested",
+        event_type=request.event_type,
+        adopter_email=request.adopter_email,
+    )
+    
+    # Construir payload completo
+    webhook_payload = AdoptionWebhookPayload(
+        event=request.event_type,
+        timestamp=datetime.utcnow(),
+        adopter_email=request.adopter_email,
+        adopter_name=request.adopter_name,
+        adopter_phone=request.adopter_phone,
+        adoption_id=request.adoption_id,
+        animal_id=request.animal_id,
+        animal_name=request.animal_name,
+        animal_species=request.animal_species,
+        shelter_id=request.shelter_id,
+        shelter_name=request.shelter_name,
+    )
+    
+    payload_dict = webhook_payload.model_dump(mode="json")
+    
+    # Obtener partners suscritos
+    partners = await partner_service.list_partners_for_event(event_type)
+    
+    if not partners:
+        logger.warning("No partners subscribed to event", event_type=request.event_type)
+        return APIResponse(
+            success=True,
+            message=f"⚠️ No hay partners suscritos al evento '{request.event_type}'",
+            data=TestWebhookResponse(
+                success=True,
+                message="No partners subscribed. Registra un partner primero en POST /api/partners/register",
+                payload_sent=payload_dict,
+                webhooks_sent=0,
+                webhook_ids=[],
+            ),
+        )
+    
+    # Enviar a cada partner
+    webhook_ids = []
+    
+    for partner in partners:
+        try:
+            webhook_id = await webhook_service.send_webhook_to_partner(
+                partner=partner,
+                event_type=event_type,
+                data=payload_dict,
+                payment_id=None,
+            )
+            
+            if webhook_id:
+                webhook_ids.append(str(webhook_id))
+                logger.info(
+                    "🧪 Test webhook sent successfully",
+                    partner=partner.name,
+                    webhook_url=partner.webhook_url,
+                    webhook_id=str(webhook_id),
+                )
+                
+        except Exception as e:
+            logger.error(
+                "🧪 Failed to send test webhook",
+                partner=partner.name,
+                error=str(e),
+            )
+    
+    return APIResponse(
+        success=True,
+        message=f"✅ Webhook de prueba enviado a {len(webhook_ids)} partner(s)",
+        data=TestWebhookResponse(
+            success=True,
+            message=f"Webhooks enviados exitosamente a {len(webhook_ids)} partners",
+            payload_sent=payload_dict,
             webhooks_sent=len(webhook_ids),
             webhook_ids=webhook_ids,
         ),

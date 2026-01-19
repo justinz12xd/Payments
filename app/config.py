@@ -28,7 +28,9 @@ class Settings(BaseSettings):
     
     # Stripe
     STRIPE_SECRET_KEY: str
+    STRIPE_PUBLISHABLE_KEY: str = ""
     STRIPE_WEBHOOK_SECRET: str = ""
+    WEBHOOK_SECRET: str = ""
     
     # Proveedor de pago activo: "stripe" o "mock"
     PAYMENT_PROVIDER: Literal["stripe", "mock"] = "mock"
