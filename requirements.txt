@@ -17,6 +17,7 @@ stripe==10.10.0
 # Validación y configuración
 pydantic==2.9.2
 pydantic-settings==2.5.2
+email-validator==2.1.0
 python-dotenv==1.0.1
 
 # HTTP client para webhooks salientes

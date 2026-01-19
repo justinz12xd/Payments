@@ -115,10 +115,10 @@ async def health_check():
 
 
 # Incluir routers
-app.include_router(payments_router, prefix="/payments", tags=["Payments"])
-app.include_router(webhooks_router, prefix="/webhooks", tags=["Webhooks"])
-app.include_router(partners_router, prefix="/partners", tags=["Partners"])
-app.include_router(adoptions_router, prefix="/adoptions", tags=["Adoptions B2B"])
+app.include_router(payments_router, prefix="/api/payments", tags=["Payments"])
+app.include_router(webhooks_router, prefix="/api/webhooks", tags=["Webhooks"])
+app.include_router(partners_router, prefix="/api/partners", tags=["Partners"])
+app.include_router(adoptions_router, prefix="/api/adoptions", tags=["Adoptions B2B"])
 
 
 if __name__ == "__main__":
