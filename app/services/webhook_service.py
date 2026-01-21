@@ -303,11 +303,14 @@ class WebhookService:
             default=str,
         ).encode("utf-8")
         
-        # Crear firma y timestamp (formato compatible con sistema externo)
-        timestamp = str(int(time.time()))
-        # Firmar: timestamp.payload (como esperan sistemas externos)
+        # Crear firma y timestamp (formato Stripe: t=timestamp,v1=signature)
+        timestamp = int(time.time())
+        # Firmar: timestamp.payload (estándar Stripe/HMAC)
         signed_payload = f"{timestamp}.".encode("utf-8") + payload_bytes
         signature = generate_signature(signed_payload, partner.secret)
+        
+        # Formato Stripe para X-Webhook-Signature
+        signature_header = f"t={timestamp},v1={signature}"
         
         # Crear log antes de enviar
         webhook_log = await self.webhook_repo.create_outgoing(
@@ -328,8 +331,7 @@ class WebhookService:
                     content=payload_bytes,
                     headers={
                         "Content-Type": "application/json",
-                        "X-Webhook-Signature": signature,
-                        "X-Webhook-Timestamp": timestamp,
+                        "X-Webhook-Signature": signature_header,
                         "X-Partner-ID": str(partner.id),
                         "X-Webhook-Id": str(webhook_payload.id),
                         "X-Event-Type": event_type.value,

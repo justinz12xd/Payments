@@ -52,6 +52,18 @@ def verify_signature(
         True si la firma es válida
     """
     expected = generate_signature(payload, secret)
+    
+    # DEBUG: Log detallado de la verificación
+    logger.debug(
+        "Signature verification",
+        payload_length=len(payload),
+        payload_preview=payload[:100].decode('utf-8', errors='ignore') if len(payload) > 0 else "",
+        secret_prefix=secret[:10] if secret else "None",
+        received_signature=signature,
+        expected_signature=expected,
+        match=expected == signature,
+    )
+    
     return hmac.compare_digest(expected, signature)
 
 
@@ -116,28 +128,65 @@ def verify_webhook_signature_header(
         timestamp_str = parts.get("t")
         received_signature = parts.get("v1")
         
+        # DEBUG: Log del header parseado
+        logger.debug(
+            "Parsing webhook signature header",
+            signature_header=signature_header,
+            timestamp=timestamp_str,
+            signature_preview=received_signature[:20] if received_signature else None,
+        )
+        
         if not timestamp_str or not received_signature:
+            logger.warning("Invalid signature header format", parts=parts)
             return False, "Invalid signature header format"
         
         timestamp = int(timestamp_str)
         
         # Verificar que el timestamp no sea muy viejo (replay attack)
         current_time = int(time.time())
-        if abs(current_time - timestamp) > tolerance_seconds:
+        time_diff = abs(current_time - timestamp)
+        
+        logger.debug(
+            "Verifying webhook timestamp",
+            timestamp=timestamp,
+            current_time=current_time,
+            difference_seconds=time_diff,
+            tolerance_seconds=tolerance_seconds,
+            within_tolerance=time_diff <= tolerance_seconds,
+        )
+        
+        if time_diff > tolerance_seconds:
             logger.warning(
                 "Webhook timestamp out of tolerance",
                 timestamp=timestamp,
                 current_time=current_time,
-                difference=abs(current_time - timestamp),
+                difference=time_diff,
             )
             return False, "Timestamp out of tolerance"
         
         # Reconstruir el mensaje firmado
         signed_payload = f"{timestamp}.".encode("utf-8") + payload
         
+        logger.debug(
+            "Reconstructing signed payload",
+            timestamp=timestamp,
+            payload_length=len(payload),
+            signed_payload_preview=(
+                signed_payload[:100].decode('utf-8', errors='ignore') 
+                if len(signed_payload) > 0 else ""
+            ),
+        )
+        
         # Verificar firma
         if not verify_signature(signed_payload, received_signature, secret):
+            logger.error(
+                "Signature verification FAILED",
+                received_signature=received_signature,
+                secret_prefix=secret[:10] if secret else "None",
+            )
             return False, "Invalid signature"
+        
+        logger.info("Signature verification SUCCESS")
         
         return True, None
         

@@ -166,21 +166,38 @@ async def partner_webhook(
             detail="Partner not found",
         )
     
+    logger.info(
+        "Partner webhook received",
+        partner_id=partner_id,
+        partner_name=partner.name,
+        signature_header=webhook_signature,
+        payload_size=len(payload),
+    )
+    
     # Verificar firma (probar secret actual y anterior si existe)
     is_valid, error = verify_webhook_signature_header(
         payload, webhook_signature, partner.secret
     )
     
     if not is_valid and partner.previous_secret:
+        logger.warning(
+            "Current secret failed, trying previous secret",
+            partner_id=partner_id,
+        )
         is_valid, error = verify_webhook_signature_header(
             payload, webhook_signature, partner.previous_secret
         )
+        if is_valid:
+            logger.info("Verified with previous secret (rotation grace period)")
     
     if not is_valid:
-        logger.warning(
-            "Partner webhook verification failed",
+        logger.error(
+            "Partner webhook verification FAILED",
             partner_id=partner_id,
+            partner_name=partner.name,
             error=error,
+            signature_header=webhook_signature,
+            payload_preview=payload[:200].decode('utf-8', errors='ignore'),
         )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -211,3 +228,29 @@ async def partner_webhook(
         "partner": partner.name,
         "event": event_data.get("event"),
     }
+
+
+@router.post(
+    "/external",
+    status_code=status.HTTP_200_OK,
+    summary="Webhook externo (Alias de /partner)",
+    description="""
+    Endpoint alternativo para recibir webhooks de sistemas externos/partners.
+    
+    Este es un alias de `/partner`. Funciona exactamente igual:
+    - Valida firma HMAC via header `X-Webhook-Signature`
+    - Formato: `t=<timestamp>,v1=<signature>`
+    - Requiere header `X-Partner-Id` con el UUID del partner
+    
+    Útil si prefieres usar `/external` en lugar de `/partner` en tu documentación.
+    """,
+)
+async def external_webhook(
+    request: Request,
+    webhook_signature: str = Header(alias="X-Webhook-Signature"),
+    partner_id: str = Header(alias="X-Partner-Id"),
+    service: WebhookService = Depends(get_webhook_service),
+):
+    """Procesa un webhook externo (alias de partner_webhook)."""
+    # Reutilizar la misma lógica que partner_webhook
+    return await partner_webhook(request, webhook_signature, partner_id, service)
